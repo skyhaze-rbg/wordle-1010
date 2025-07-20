@@ -3,7 +3,7 @@ const GameState = {
     attemptCount: 0,
     userAttempts: [],
     highlightedRows: [],
-    keyboard: getKeyboard(),
+    keyboard: {}, // Will be initialized in loadOrStart
     answer: "apple", // Only used for debugging
     status: "in-progress",
     getAttemptCount() {

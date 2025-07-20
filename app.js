@@ -1,27 +1,60 @@
 /** Wait for Content to load */
 document.addEventListener("DOMContentLoaded", async () => {
+    console.log("DOM Content Loaded");
+    
     /** Constants that contain elements on the screen */
     // Get all 30 tiles
     const TILES = Array.from(document.querySelectorAll(".tile"));
+    console.log("TILES found:", TILES.length);
+    
     // Get all 6 rows
     const ROWS = document.querySelectorAll(".row");
+    console.log("ROWS found:", ROWS.length);
+    
     // First get the keyboard
     const KEYBOARD = document.querySelector("#keyboard");
+    console.log("KEYBOARD found:", KEYBOARD);
+    
     // Then get each key on the keyboard
     const KEYBOARD_KEYS = KEYBOARD.querySelectorAll("button");
+    console.log("KEYBOARD_KEYS found:", KEYBOARD_KEYS.length);
 
     /** Start the whole game (Student) */
     async function startWebGame() {
+        console.log("Starting web game...");
         await GameState.loadOrStart();
+        console.log("GameState loaded:", GameState);
+        
+        // Clear all tiles to ensure clean start
+        TILES.forEach(tile => {
+            tile.textContent = "";
+            tile.dataset.status = "empty";
+            tile.removeAttribute("data-animation");
+        });
+        
         paintGameState();
         startInteraction();
+        console.log("Game started and interactions bound");
     }
 
     /** Bind events */
     function startInteraction() {
+        console.log("Starting interactions...");
         const keyboardElement = document.getElementById("keyboard");
         keyboardElement.addEventListener("click", handleClickEvent);
         document.addEventListener("keydown", handlePressEvent);
+        
+        // Add reset button functionality
+        const resetButton = document.getElementById("reset-button");
+        console.log("Reset button found:", resetButton);
+        if (resetButton) {
+            resetButton.addEventListener("click", handleResetGame);
+            console.log("Reset button event listener added");
+        } else {
+            console.error("Reset button not found!");
+        }
+        
+        console.log("Event listeners added");
     }
 
     /** Unbind events during animation */
@@ -29,43 +62,109 @@ document.addEventListener("DOMContentLoaded", async () => {
         const keyboardElement = document.getElementById("keyboard");
         keyboardElement.removeEventListener("click", handleClickEvent);
         document.removeEventListener("keydown", handlePressEvent);
+        
+        // Remove reset button listener
+        const resetButton = document.getElementById("reset-button");
+        if (resetButton) {
+            resetButton.removeEventListener("click", handleResetGame);
+        }
+    }
+
+    /** Handle reset game button */
+    async function handleResetGame() {
+        console.log("=== RESET GAME STARTED ===");
+        
+        // Clear localStorage
+        window.localStorage.removeItem("HSAKA_WORDLE");
+        console.log("localStorage cleared");
+        
+        // Reset game state
+        GameState.attemptCount = 0;
+        GameState.userAttempts = [];
+        GameState.highlightedRows = [];
+        GameState.status = "in-progress";
+        console.log("GameState reset:", GameState);
+        
+        // Get a NEW random answer using the global function
+        if (window.getRandomAnswer) {
+            GameState.answer = window.getRandomAnswer();
+            console.log("New random word:", GameState.answer);
+        } else {
+            console.error("getRandomAnswer function not available!");
+        }
+        
+        // Clear the board
+        TILES.forEach(tile => {
+            tile.textContent = "";
+            tile.dataset.status = "empty";
+            tile.removeAttribute("data-animation");
+        });
+        console.log("Board cleared");
+        
+        // Reset keyboard colors to unknown
+        KEYBOARD_KEYS.forEach(keyEl => {
+            keyEl.dataset.status = "unknown";
+        });
+        console.log("Keyboard colors reset");
+        
+        // Reset keyboard state in GameState using the global function
+        if (window.getKeyboard) {
+            GameState.keyboard = window.getKeyboard();
+            console.log("Keyboard state reset in GameState");
+        } else {
+            console.error("getKeyboard function not available!");
+        }
+        
+        console.log("=== RESET GAME COMPLETE ===");
     }
 
     /** Button click events on the keyboard elements */
     function handleClickEvent(event) {
+        console.log("Click event:", event.target);
         const button = event.target;
         if (!(button instanceof HTMLButtonElement)) {
+            console.log("Not a button element");
             return;
         }
         let key = button.dataset.key;
         if (!key) {
+            console.log("No key data");
             return;
         }
+        console.log("Clicking key:", key);
         pressKey(key);
     }
 
     /** Keyboard press events on the document */
     function handlePressEvent(event) {
+        console.log("Key press event:", event.key);
         if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
+            console.log("Modifier key pressed, ignoring");
             return;
         }
         const key = event.key;
+        console.log("Processing key:", key);
         pressKey(key);
     }
 
     /** Handle keypress (Student) */
     function pressKey(key) {
+        console.log("pressKey called with:", key);
         const status = GameState.getStatus();
+        console.log("Game status:", status);
 
         if (status !== "in-progress") {
+            console.log("Game not in progress, ignoring key");
             return;
         }
 
         const currentGuess = GameState.getCurrentGuess();
+        console.log("Current guess:", currentGuess);
 
         let next = Array.from(TILES).findIndex(
             tileEle => tileEle.innerText === ""
         );
+        console.log("Next empty tile index:", next);
 
         if (next === -1) {
             next = MAX_ATTEMPTS * WORD_LENGTH;
@@ -74,11 +173,14 @@ document.addEventListener("DOMContentLoaded", async () => {
         const regex = new RegExp("^[a-zA-Z]$");
 
         if (regex.test(key)) {
+            console.log("Handling alphabet key:", key);
             handleAlphabetKey(currentGuess, key, next);
         } else if (key === "Backspace" || key === "Delete") {
+            console.log("Handling delete key");
             handleDeleteKey(currentGuess, next);
         } else if (key === "Enter") {
-            handleSubmitKey(currentGuess, next);
+            console.log("Handling enter key");
+            handleSubmitKey(currentGuess);
         }
     }
 
@@ -90,8 +192,12 @@ document.addEventListener("DOMContentLoaded", async () => {
         }
         const nextTile = TILES[next];
         nextTile.textContent = key;
-        nextTile.dataset.status = "tbd";
+        nextTile.dataset.status = "tbd"; // Keep as "tbd" (to be determined) until submitted
         nextTile.dataset.animation = "pop";
+        nextTile.removeAttribute("data-animation"); // Remove any previous animation
+        
+        console.log(`Typing '${key}' at position ${next}, status set to:`, nextTile.dataset.status);
+        
         // Appends to the last word in user attempts
         // eg. "b" -> "ba" -> "bat"
         GameState.setUserAttempt(currentGuess + key);
@@ -115,17 +221,23 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     /** Handle Submit (Student) */
     async function handleSubmitKey(currentGuess) {
+        console.log("handleSubmitKey called with:", currentGuess);
         if (currentGuess.length < WORD_LENGTH) {
+            console.log("Word too short, ignoring");
             return;
         }
 
         const answer = GameState.getAnswer();
         const oldKeyboard = GameState.getKeyboard();
         const attemptCount = GameState.getAttemptCount();
+        
+        console.log("Checking word validity...");
+        console.log("isInputCorrect function available:", typeof isInputCorrect);
 
         /********* Move code from wordle.js to here ********/
         // 1. Check if word is in word list
         if (isInputCorrect(currentGuess)) {
+            console.log("Word is valid, processing...");
             // 2. absent (grey), present (yellow), correct (green)
             const highlightedCharacters = getCharactersHighlight(
                 currentGuess,
@@ -165,6 +277,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
             console.log("GAME_STATE", GameState);
         } else {
+            console.log("Word is invalid");
             // Handle wrong words
             shakeRow(currentGuess, attemptCount);
         }
@@ -241,7 +354,10 @@ document.addEventListener("DOMContentLoaded", async () => {
             if (i === WORD_LENGTH - 1) {
                 tileRow[i].onanimationend = () => {
                     console.log("first");
-                    alert(`${CONGRATULATIONS[index]}!`);
+                    // Use attemptCount (1-based) instead of row index (0-based)
+                    const attemptCount = GameState.getAttemptCount();
+                    const message = CONGRATULATIONS[attemptCount - 1] || "Congratulations";
+                    alert(`${message}!`);
                 };
             }
         }
@@ -262,17 +378,20 @@ document.addEventListener("DOMContentLoaded", async () => {
     async function paintGameState() {
         const attemptCount = GameState.getAttemptCount();
 
-        // Start of a new game so game state is empty
+        // Start of a new game so game state is empty - don't paint anything
         if (attemptCount === 0) {
+            console.log("New game - no previous state to paint");
             return;
         }
 
+        console.log("Painting previous game state...");
         const evaluation = GameState.getHighlightedRows();
         const userAttempts = GameState.getUserAttempt();
 
         const previousChars = userAttempts.flatMap(word => [...word.split("")]);
 
-        paintKeyboard();
+        // Don't paint keyboard on initial load - only paint it after submitting words
+        // paintKeyboard();
 
         previousChars.forEach((char, i) => {
             TILES[i].textContent = char;

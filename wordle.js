@@ -112,6 +112,9 @@ function getKeyboard() {
     return Object.fromEntries(entries);
 }
 
+// Make function available globally
+window.getKeyboard = getKeyboard;
+
 function updateKeyboardHighlights(
     keyboard,
     currentGuess,
@@ -148,21 +151,23 @@ function updateGameStatus(currentGuess, answer, attemptCount, round) {
 }
 
 function saveGame(gameState) {
-    window.localStorage.setItem("PREFACE_WORDLE", JSON.stringify(gameState));
+    window.localStorage.setItem("HSAKA_WORDLE", JSON.stringify(gameState));
 }
 
 function getTodaysAnswer() {
-    // Starting point of your game
-    const offsetFromDate = new Date(2023, 0, 1).getTime();
-    // Get today
-    const today = new Date().getTime();
-    // Calculate ms offset
-    const msOffset = today - offsetFromDate;
-    // Calculate how many days has pass
-    const daysOffset = msOffset / 1000 / 60 / 60 / 24;
-    const answerIndex = Math.floor(daysOffset);
-    return wordList.playable[answerIndex];
+    // Use random word instead of date-based for more variety
+    const randomIndex = Math.floor(Math.random() * wordList.playable.length);
+    return wordList.playable[randomIndex];
 }
+
+function getRandomAnswer() {
+    // Get a completely random word from the playable list
+    const randomIndex = Math.floor(Math.random() * wordList.playable.length);
+    return wordList.playable[randomIndex];
+}
+
+// Make function available globally
+window.getRandomAnswer = getRandomAnswer;
 
 function isToday(timestamp) {
     const today = new Date();
@@ -171,12 +176,19 @@ function isToday(timestamp) {
 }
 
 async function loadOrStartGame(debug) {
+    console.log("Loading word list...");
     wordList = await fetch("./src/fixtures/words.json")
         .then(response => {
+            console.log("Word list response:", response);
             return response.json();
         })
         .then(json => {
+            console.log("Word list loaded:", json.valid.length, "valid words,", json.playable.length, "playable words");
             return json;
+        })
+        .catch(error => {
+            console.error("Error loading word list:", error);
+            return {valid: [], playable: []};
         });
 
     let answer;
@@ -186,14 +198,18 @@ async function loadOrStartGame(debug) {
     } else {
         answer = getTodaysAnswer();
     }
-    const prevGame = JSON.parse(window.localStorage.getItem("PREFACE_WORDLE"));
+    console.log("Today's answer:", answer);
+    
+    const prevGame = JSON.parse(window.localStorage.getItem("HSAKA_WORDLE"));
 
     if (prevGame && isToday(prevGame.timestamp)) {
+        console.log("Loading previous game state");
         return {
             ...prevGame,
             answer,
         };
     }
+    console.log("Starting new game");
     return {
         attemptCount: 0,
         userAttempts: [],
